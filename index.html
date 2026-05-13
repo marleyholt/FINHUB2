@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FinHub - Gestão Financeira Familiar de Alto Nível</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body { margin: 0; background-color: #000; color: #fff; font-family: system-ui, -apple-system, sans-serif; scroll-behavior: smooth; }
+        .gradient-text {
+            background: linear-gradient(to right, #4ade80, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .hero-glow {
+            position: absolute;
+            top: -10%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80vw;
+            height: 500px;
+            background: radial-gradient(circle, rgba(34,197,94,0.15) 0%, rgba(0,0,0,0) 70%);
+            z-index: -1;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="antialiased overflow-x-hidden relative">
+
+    <!-- HEADER -->
+    <header class="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-md border-b border-zinc-900">
+        <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <i data-lucide="target" class="text-green-500 w-8 h-8"></i>
+                <h1 class="text-2xl font-black text-white tracking-tighter">FIN<span class="text-green-500">HUB</span></h1>
+            </div>
+            <nav class="hidden md:flex space-x-8 text-sm font-medium text-zinc-400">
+                <a href="#funcionalidades" class="hover:text-white transition-colors">Funcionalidades</a>
+                <a href="#como-funciona" class="hover:text-white transition-colors">Como Funciona</a>
+                <a href="#planos" class="hover:text-white transition-colors">Planos</a>
+            </nav>
+            <div>
+                <!-- Link para a sua aplicação real (app.html) -->
+                <a href="app.html" class="flex items-center text-sm font-bold text-white bg-zinc-800 hover:bg-zinc-700 px-5 py-2.5 rounded-lg transition-colors border border-zinc-700">
+                    <i data-lucide="user" class="w-4 h-4 mr-2"></i> Acesso ao usuário
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- HERO SECTION -->
+    <section class="relative pt-40 pb-20 px-6 min-h-[90vh] flex flex-col justify-center items-center text-center">
+        <div class="hero-glow"></div>
+        <div class="max-w-4xl mx-auto">
+            <div class="inline-flex items-center space-x-2 bg-green-500/10 border border-green-500/20 text-green-400 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest mb-8">
+                <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                <span>O Fim do Caos Financeiro</span>
+            </div>
+            <h1 class="text-5xl md:text-7xl font-black text-white mb-6 leading-tight tracking-tight">
+                O seu orçamento sob <br />
+                <span class="gradient-text">Controle Absoluto.</span>
+            </h1>
+            <p class="text-lg md:text-xl text-zinc-400 mb-10 max-w-2xl mx-auto leading-relaxed">
+                A única plataforma de gestão familiar que cruza automaticamente o seu <strong>Orçamento Previsto</strong> com as suas <strong>Despesas Reais</strong>. Sem duplicação de dados, sem planilhas complexas.
+            </p>
+            <div class="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4">
+                <a href="app.html" class="w-full sm:w-auto bg-green-600 hover:bg-green-500 text-white text-lg font-bold py-4 px-8 rounded-xl transition-all shadow-[0_0_20px_rgba(34,197,94,0.3)] hover:shadow-[0_0_30px_rgba(34,197,94,0.5)]">
+                    Comece seus 3 dias Grátis
+                </a>
+                <a href="#funcionalidades" class="w-full sm:w-auto bg-transparent border border-zinc-700 hover:bg-zinc-800 text-white text-lg font-bold py-4 px-8 rounded-xl transition-colors">
+                    Ver Funcionalidades
+                </a>
+            </div>
+            <p class="text-sm text-zinc-500 mt-6 flex items-center justify-center">
+                <i data-lucide="shield-check" class="w-4 h-4 mr-2"></i> Dados encriptados de ponta a ponta na nuvem.
+            </p>
+        </div>
+    </section>
+
+    <!-- FUNCIONALIDADES (FEATURES) -->
+    <section id="funcionalidades" class="py-24 bg-zinc-950 border-t border-zinc-900">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl md:text-4xl font-black text-white mb-4">Desenvolvido para poupar o seu tempo</h2>
+                <p class="text-zinc-400 max-w-2xl mx-auto">Esqueça a digitação manual redobrada. O FinHub possui automações inteligentes projetadas para a vida real de uma família.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <!-- Feature 1 -->
+                <div class="bg-black border border-zinc-800 p-8 rounded-2xl hover:border-green-500/50 transition-colors">
+                    <div class="w-12 h-12 bg-blue-500/10 text-blue-500 rounded-xl flex items-center justify-center mb-6">
+                        <i data-lucide="copy" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-3">Espelhamento de Parcelas</h3>
+                    <p class="text-zinc-400 text-sm leading-relaxed">
+                        Comprou parcelado? Lance apenas uma vez no "Orçamento". O FinHub projeta automaticamente todas as parcelas nos meses seguintes e <strong>espelha a compra para as suas Despesas Reais</strong> (pois o que está no cartão, não tem como fugir).
+                    </p>
+                </div>
+
+                <!-- Feature 2 -->
+                <div class="bg-black border border-zinc-800 p-8 rounded-2xl hover:border-green-500/50 transition-colors">
+                    <div class="w-12 h-12 bg-green-500/10 text-green-500 rounded-xl flex items-center justify-center mb-6">
+                        <i data-lucide="repeat" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-3">Lançamentos Recorrentes</h3>
+                    <p class="text-zinc-400 text-sm leading-relaxed">
+                        Contas de água, luz, internet ou aluguel. Defina a recorrência informando o mês final e o nosso motor criará automaticamente a previsão para o ano inteiro em menos de 1 segundo.
+                    </p>
+                </div>
+
+                <!-- Feature 3 -->
+                <div class="bg-black border border-zinc-800 p-8 rounded-2xl hover:border-green-500/50 transition-colors">
+                    <div class="w-12 h-12 bg-purple-500/10 text-purple-500 rounded-xl flex items-center justify-center mb-6">
+                        <i data-lucide="file-spreadsheet" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-3">Importação Smart CSV</h3>
+                    <p class="text-zinc-400 text-sm leading-relaxed">
+                        Prefere organizar tudo no Excel? Baixe nosso modelo homologado, preencha no seu computador e importe. O FinHub lê os dados e gera todo o seu orçamento de forma instantânea.
+                    </p>
+                </div>
+
+                <!-- Feature 4 -->
+                <div class="bg-black border border-zinc-800 p-8 rounded-2xl hover:border-green-500/50 transition-colors">
+                    <div class="w-12 h-12 bg-yellow-500/10 text-yellow-500 rounded-xl flex items-center justify-center mb-6">
+                        <i data-lucide="activity" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-3">Dashboard Previsto vs Real</h3>
+                    <p class="text-zinc-400 text-sm leading-relaxed">
+                        A visão mais importante para a sua riqueza. Compare lado a lado o que você planejou gastar com o que realmente gastou. Descubra quais categorias estão estourando o seu limite antes que o mês acabe.
+                    </p>
+                </div>
+
+                <!-- Feature 5 -->
+                <div class="bg-black border border-zinc-800 p-8 rounded-2xl hover:border-green-500/50 transition-colors">
+                    <div class="w-12 h-12 bg-red-500/10 text-red-500 rounded-xl flex items-center justify-center mb-6">
+                        <i data-lucide="smartphone" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-3">Lançamento Expresso Mobile</h3>
+                    <p class="text-zinc-400 text-sm leading-relaxed">
+                        Fez uma compra no mercado? Abra o FinHub no celular. Nossa interface mobile esconde gráficos complexos e abre direto no formulário rápido. Lance a despesa em 5 segundos enquanto ainda está no caixa.
+                    </p>
+                </div>
+
+                <!-- Feature 6 -->
+                <div class="bg-black border border-zinc-800 p-8 rounded-2xl hover:border-green-500/50 transition-colors">
+                    <div class="w-12 h-12 bg-cyan-500/10 text-cyan-500 rounded-xl flex items-center justify-center mb-6">
+                        <i data-lucide="pie-chart" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-3">Resumos Anuais e Gráficos</h3>
+                    <p class="text-zinc-400 text-sm leading-relaxed">
+                        Tenha a visão macro de todo o seu ano. Acompanhe a curva de evolução do seu saldo ao longo dos meses e veja a distribuição das suas despesas organizadas por percentual de impacto.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- COMO FUNCIONA (STEP BY STEP) -->
+    <section id="como-funciona" class="py-24 bg-black">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl md:text-4xl font-black text-white mb-4">Metodologia FinHub em 3 Passos</h2>
+                <p class="text-zinc-400 max-w-2xl mx-auto">Como organizamos a bagunça financeira da sua família.</p>
+            </div>
+
+            <div class="flex flex-col md:flex-row gap-8 justify-center">
+                <!-- Passo 1 -->
+                <div class="flex-1 text-center p-6 relative">
+                    <div class="w-16 h-16 mx-auto bg-zinc-900 border border-zinc-800 rounded-full flex items-center justify-center text-xl font-black text-green-500 mb-6 relative z-10">1</div>
+                    <h4 class="text-xl font-bold text-white mb-3">O Orçamento</h4>
+                    <p class="text-zinc-400 text-sm">No início do mês (ou do ano), você lança as suas previsões. Assinaturas, aluguel, luz e metas de gastos com lazer ou mercado.</p>
+                </div>
+                
+                <div class="hidden md:block w-px bg-gradient-to-b from-transparent via-zinc-800 to-transparent mt-12 mb-12"></div>
+                
+                <!-- Passo 2 -->
+                <div class="flex-1 text-center p-6 relative">
+                    <div class="w-16 h-16 mx-auto bg-zinc-900 border border-zinc-800 rounded-full flex items-center justify-center text-xl font-black text-blue-500 mb-6 relative z-10">2</div>
+                    <h4 class="text-xl font-bold text-white mb-3">A Execução Real</h4>
+                    <p class="text-zinc-400 text-sm">Durante o mês, você usa o celular ou computador para registrar de forma rápida apenas o que realmente foi pago e recebido.</p>
+                </div>
+
+                <div class="hidden md:block w-px bg-gradient-to-b from-transparent via-zinc-800 to-transparent mt-12 mb-12"></div>
+
+                <!-- Passo 3 -->
+                <div class="flex-1 text-center p-6 relative">
+                    <div class="w-16 h-16 mx-auto bg-zinc-900 border border-zinc-800 rounded-full flex items-center justify-center text-xl font-black text-purple-500 mb-6 relative z-10">3</div>
+                    <h4 class="text-xl font-bold text-white mb-3">O Cruzamento</h4>
+                    <p class="text-zinc-400 text-sm">O Dashboard cruza tudo em tempo real. Você vê imediatamente se está cumprindo a meta e quais categorias precisam de atenção.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- PRICING / CTA -->
+    <section id="planos" class="py-24 bg-zinc-950 border-y border-zinc-900 relative overflow-hidden">
+        <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCI+CjxwYXRoIGQ9Ik0wIDBoNDB2NDBIMHoiIGZpbGw9Im5vbmUiLz4KPHBhdGggZD0iTTAgMGgxdjQwSDB6TTM5IDBoMXY0MEgzOXoiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wMykiLz4KPHBhdGggZD0iTTAgMGg0MHYxSDB6TTAgMzloNDB2MUgweiIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIvPgo8L3N2Zz4=')]"></div>
+        <div class="max-w-4xl mx-auto px-6 relative z-10">
+            <div class="bg-black border border-green-500/30 rounded-3xl p-8 md:p-12 text-center shadow-[0_0_50px_rgba(34,197,94,0.1)]">
+                <h2 class="text-3xl md:text-4xl font-black text-white mb-4">Simples. Direto. Acessível.</h2>
+                <p class="text-zinc-400 mb-8 max-w-xl mx-auto">Faça a gestão da sua vida financeira na nuvem, com segurança de nível bancário e acesso de qualquer dispositivo.</p>
+                
+                <div class="flex justify-center items-end mb-8">
+                    <span class="text-2xl font-bold text-zinc-500 mr-2">R$</span>
+                    <span class="text-6xl font-black text-white">9</span>
+                    <span class="text-xl font-medium text-zinc-500 ml-1 mb-2">,90 / mês</span>
+                </div>
+
+                <div class="space-y-4 text-left max-w-sm mx-auto mb-10">
+                    <p class="flex items-center text-zinc-300"><i data-lucide="check" class="text-green-500 w-5 h-5 mr-3"></i> Acesso total ao Orçamento e Realizado</p>
+                    <p class="flex items-center text-zinc-300"><i data-lucide="check" class="text-green-500 w-5 h-5 mr-3"></i> Lançamentos ilimitados e seguros</p>
+                    <p class="flex items-center text-zinc-300"><i data-lucide="check" class="text-green-500 w-5 h-5 mr-3"></i> Automação de parcelas e recorrência</p>
+                    <p class="flex items-center text-zinc-300"><i data-lucide="check" class="text-green-500 w-5 h-5 mr-3"></i> Importação de CSV Ilimitada</p>
+                </div>
+
+                <!-- Link para a sua aplicação real (app.html) -->
+                <a href="app.html" class="inline-block w-full md:w-auto bg-green-600 hover:bg-green-500 text-white text-lg font-bold py-4 px-12 rounded-xl transition-all">
+                    Criar Conta com 3 Dias Grátis
+                </a>
+                <p class="text-xs text-zinc-500 mt-4">Não exigimos cartão de crédito para iniciar o teste.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="bg-black py-12 border-t border-zinc-900">
+        <div class="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center">
+            <div class="flex items-center space-x-2 mb-4 md:mb-0">
+                <i data-lucide="target" class="text-zinc-600 w-6 h-6"></i>
+                <span class="text-xl font-black text-zinc-600 tracking-tighter">FIN<span class="text-zinc-500">HUB</span></span>
+            </div>
+            <div class="text-sm text-zinc-500">
+                &copy; 2026 FinHub. Todos os direitos reservados.
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Inicializa a renderização dos ícones (Lucide)
+        lucide.createIcons();
+    </script>
+</body>
+</html>
