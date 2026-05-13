@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FinHub - Gestão Financeira Familiar</title>
+    
+    <!-- Tailwind CSS (via CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Babel (para compilar React no Browser) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body { margin: 0; background-color: #000; color: #fff; font-family: system-ui, -apple-system, sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useMemo, useEffect, useRef } from "https://esm.sh/react@18";
+        import { createRoot } from "https://esm.sh/react-dom@18/client";
+        import { 
+            LayoutDashboard, TrendingDown, TrendingUp, DollarSign,
+            PieChart, Target, LogOut, Lock, Calendar, ListPlus,
+            Tag, Trash2, Edit2, Plus, Settings, User as UserIcon, Key, Loader2,
+            BarChart3, Wallet, Activity, Download, Upload, Shield, CreditCard, AlertTriangle, Users
+        } from "https://esm.sh/lucide-react@0.263.1";
+
+        // --- FIREBASE IMPORTS ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, updateProfile, updatePassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, onSnapshot, deleteDoc, updateDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // --- FIREBASE CONFIGURATION ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyAWsiRWFynuzmmVWtijPPugnZiA27Kus5I",
+            authDomain: "finlhub.firebaseapp.com",
+            projectId: "finlhub",
+            storageBucket: "finlhub.firebasestorage.app",
+            messagingSenderId: "80100152503",
+            appId: "1:80100152503:web:25bec2eba2315d79e0a932",
+            measurementId: "G-H5BFZXXT88"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // --- CONFIGURAÇÃO DO SISTEMA SAAS ---
+        const ADMIN_EMAIL = 'admin@finhub.com'; // Mude para o seu e-mail real que será o dono do sistema
+        const PAYMENT_LINK = 'https://mpago.la/2qMAkeh'; // Link de pagamento recorrente
+
+        // --- INITIAL STATE ---
+        const INITIAL_CATEGORIES = ['Habitação', 'Alimentação', 'Lazer', 'Transporte', 'Saúde', 'Educação', 'Outros'];
+
+        // --- HELPER FUNCTIONS ---
+        const addMonthsToPeriod = (periodStr, monthsToAdd) => {
+            if (!periodStr) return '';
+            const [year, month] = periodStr.split('-').map(Number);
+            const date = new Date(year, month - 1 + monthsToAdd, 1);
+            return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        };
+
+        const formatPeriodLabel = (periodStr) => {
+            if (!periodStr) return '';
+            const [year, month] = periodStr.split('-');
+            const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+            return `${meses[parseInt(month) - 1]}/${year.substring(2)}`;
+        };
+
+        const calculateDaysRemaining = (expiresAt) => {
+            if (!expiresAt) return 0;
+            const diff = new Date(expiresAt).getTime() - new Date().getTime();
+            return Math.ceil(diff / (1000 * 60 * 60 * 24));
+        };
+
+        // --- COMPONENTS ---
+        const SidebarItem = ({ icon: Icon, label, isActive, onClick, isDanger }) => (
+            <button onClick={onClick} className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors duration-200 ${isActive ? (isDanger ? 'bg-red-600/20 text-red-400 border-r-4 border-red-500' : 'bg-green-600/20 text-green-400 border-r-4 border-green-500') : (isDanger ? 'text-red-400 hover:bg-red-900/20' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white')}`}>
+                <Icon size={20} />
+                <span className="font-medium text-sm">{label}</span>
+            </button>
+        );
+
+        // --- ECRÃ DE BLOQUEIO (PAYWALL) ---
+        const PaywallScreen = ({ user, onLogout }) => (
+            <div className="flex h-screen w-full items-center justify-center bg-black p-4 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-96 h-96 bg-red-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
+                <div className="w-full max-w-lg bg-zinc-950 border border-red-900/50 p-8 rounded-2xl shadow-2xl relative z-10 text-center">
+                    <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <AlertTriangle size={32} />
+                    </div>
+                    <h1 className="text-2xl font-black text-white mb-2">Assinatura Expirada</h1>
+                    <p className="text-zinc-400 text-sm mb-6">
+                        Olá, {user.displayName}. O período da sua assinatura do FinHub terminou. 
+                        Para continuar a utilizar o seu painel de gestão financeira e manter os seus dados seguros, efetue o pagamento da mensalidade.
+                    </p>
+                    <div className="bg-zinc-900 p-4 rounded-xl border border-zinc-800 mb-6 text-left text-sm text-zinc-300">
+                        <p className="mb-2 flex items-center"><Lock size={14} className="mr-2 text-green-500"/> Os seus dados estão trancados e seguros.</p>
+                        <p className="flex items-center"><Trash2 size={14} className="mr-2 text-red-500"/> Atenção: Contas inativas há mais de 30 dias serão eliminadas.</p>
+                    </div>
+                    
+                    <a href={PAYMENT_LINK} target="_blank" rel="noreferrer" className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center mb-4 cursor-pointer">
+                        <CreditCard size={18} className="mr-2" /> Renovar Assinatura Agora
+                    </a>
+                    <button onClick={onLogout} className="text-sm text-zinc-500 hover:text-white transition-colors">
+                        Sair da conta
+                    </button>
+                </div>
+            </div>
+        );
+
+        // --- ECRÃ DO ADMINISTRADOR ---
+        const AdminDashboard = () => {
+            const [usersList, setUsersList] = useState([]);
+            const [loading, setLoading] = useState(true);
+
+            useEffect(() => {
+                const unsub = onSnapshot(collection(db, 'admin_registry'), (snapshot) => {
+                    const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    setUsersList(users);
+                    setLoading(false);
+                });
+                return () => unsub();
+            }, []);
+
+            const handleRenew = async (uid, currentExpiry) => {
+                const baseDate = new Date(currentExpiry).getTime() > Date.now() ? new Date(currentExpiry) : new Date();
+                baseDate.setDate(baseDate.getDate() + 30);
+                const newExpiry = baseDate.toISOString();
+
+                try {
+                    // Atualiza o registo admin e o registo do próprio cliente
+                    const batch = writeBatch(db);
+                    batch.update(doc(db, 'admin_registry', uid), { expiresAt: newExpiry, status: 'active' });
+                    batch.update(doc(db, 'users', uid, 'subscription', 'info'), { expiresAt: newExpiry, status: 'active' });
+                    await batch.commit();
+                    alert("Assinatura renovada com sucesso por 30 dias!");
+                } catch (e) {
+                    alert("Erro ao renovar: " + e.message);
+                }
+            };
+
+            const handleDeleteUser = async (uid, name) => {
+                if(window.confirm(`Tem a certeza ABSOLUTA que deseja apagar a conta de ${name}? Esta ação não pode ser desfeita e os dados ficarão órfãos.`)) {
+                    // Nota: Numa aplicação real, a eliminação de dados precisa de uma Cloud Function. Aqui apagamos o registo para bloquear o acesso.
+                    try {
+                        const batch = writeBatch(db);
+                        batch.delete(doc(db, 'admin_registry', uid));
+                        batch.update(doc(db, 'users', uid, 'subscription', 'info'), { status: 'deleted', expiresAt: new Date().toISOString() });
+                        await batch.commit();
+                    } catch (e) { alert("Erro ao apagar: " + e.message); }
+                }
+            };
+
+            return (
+                <div className="space-y-6 pb-24 md:pb-0">
+                    <div>
+                        <h2 className="text-2xl font-bold text-white mb-1 flex items-center"><Shield className="mr-2 text-red-500" /> Painel de Administração</h2>
+                        <p className="text-zinc-400 text-sm">Controlo de Assinaturas e Utilizadores (Sem acesso a dados bancários).</p>
+                    </div>
+
+                    <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+                        <div className="p-6 border-b border-zinc-800 flex justify-between items-center">
+                            <h3 className="text-white font-medium flex items-center"><Users size={18} className="mr-2 text-blue-500"/> Clientes Ativos e Inativos</h3>
+                            <span className="bg-blue-500/10 text-blue-400 px-3 py-1 rounded-full text-xs font-bold border border-blue-500/20">
+                                Total: {usersList.length}
+                            </span>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm text-zinc-400">
+                                <thead className="bg-black/50 text-zinc-500 uppercase text-xs">
+                                    <tr>
+                                        <th className="px-6 py-4 font-medium">Cliente</th>
+                                        <th className="px-6 py-4 font-medium">E-mail</th>
+                                        <th className="px-6 py-4 font-medium">Status / Expira em</th>
+                                        <th className="px-6 py-4 font-medium text-right">Ações de Admin</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-zinc-800">
+                                    {loading ? <tr><td colSpan="4" className="text-center py-8"><Loader2 className="animate-spin mx-auto text-zinc-500" /></td></tr> : 
+                                     usersList.length === 0 ? <tr><td colSpan="4" className="text-center py-8">Nenhum utilizador registado.</td></tr> :
+                                     usersList.map(u => {
+                                        const daysRemaining = calculateDaysRemaining(u.expiresAt);
+                                        const isExpired = daysRemaining <= 0;
+                                        return (
+                                            <tr key={u.id} className="hover:bg-zinc-800/30 transition-colors">
+                                                <td className="px-6 py-4 text-white font-medium">{u.name}</td>
+                                                <td className="px-6 py-4">{u.email}</td>
+                                                <td className="px-6 py-4">
+                                                    {isExpired ? 
+                                                        <span className="text-red-400 font-bold bg-red-400/10 px-2 py-1 rounded">Expirado ({Math.abs(daysRemaining)} dias)</span> : 
+                                                        <span className="text-green-400 font-bold bg-green-400/10 px-2 py-1 rounded">Ativo ({daysRemaining} dias)</span>
+                                                    }
+                                                </td>
+                                                <td className="px-6 py-4 text-right space-x-2">
+                                                    <button onClick={() => handleRenew(u.id, u.expiresAt)} className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white rounded text-xs font-bold transition-colors">
+                                                        +30 Dias
+                                                    </button>
+                                                    <button onClick={() => handleDeleteUser(u.id, u.name)} className="p-1.5 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded transition-colors inline-flex align-middle">
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                     })
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- PAGES ---
+        const AuthPage = () => {
+            const [isLogin, setIsLogin] = useState(true);
+            const [formData, setFormData] = useState({ name: '', email: '', password: '' });
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState('');
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setLoading(true);
+                setError('');
+                try {
+                    if (isLogin) {
+                        await signInWithEmailAndPassword(auth, formData.email, formData.password);
+                    } else {
+                        // 1. Criar Auth
+                        const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+                        const uid = userCredential.user.uid;
+                        
+                        try {
+                            await updateProfile(userCredential.user, { displayName: formData.name });
+                            
+                            const batch = writeBatch(db);
+                            // 2. Criar configurações iniciais
+                            batch.set(doc(db, 'users', uid, 'settings', 'categories'), { list: INITIAL_CATEGORIES });
+                            
+                            // 3. Criar Subscrição (3 dias de teste grátis para o user testar antes da paywall)
+                            const trialExpiry = new Date();
+                            trialExpiry.setDate(trialExpiry.getDate() + 3);
+                            batch.set(doc(db, 'users', uid, 'subscription', 'info'), {
+                                status: 'active', expiresAt: trialExpiry.toISOString(), plan: 'trial'
+                            });
+
+                            // 4. Gravar no Painel do Admin (Duplo Registo para Segurança)
+                            batch.set(doc(db, 'admin_registry', uid), {
+                                name: formData.name, email: formData.email, expiresAt: trialExpiry.toISOString(), status: 'active', createdAt: new Date().toISOString()
+                            });
+
+                            await batch.commit();
+                        } catch (firestoreErr) {
+                            console.error("Erro ao criar infraestrutura da conta:", firestoreErr);
+                        }
+                    }
+                } catch (err) {
+                    let msgErro = "Erro desconhecido: " + err.message;
+                    if (err.code === 'auth/email-already-in-use') msgErro = 'Este e-mail já está registado. Tente iniciar sessão.';
+                    else if (err.code === 'auth/invalid-credential') msgErro = 'Palavra-passe incorreta ou e-mail não encontrado.';
+                    else if (err.code === 'auth/weak-password') msgErro = 'A palavra-passe é muito fraca (mínimo de 6 caracteres).';
+                    setError(msgErro);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div className="flex h-screen w-full items-center justify-center bg-black p-4">
+                    <div className="w-full max-w-md bg-zinc-950 border border-zinc-800 p-8 rounded-2xl shadow-2xl">
+                        <div className="text-center mb-8">
+                            <h1 className="text-4xl font-black text-white tracking-tighter mb-2">FIN<span className="text-green-500">HUB</span></h1>
+                            <p className="text-zinc-400 text-sm">{isLogin ? 'Bem-vindo de volta' : 'Sistema de Gestão Exclusivo'}</p>
+                        </div>
+                        {error && <div className="bg-red-500/10 border border-red-500/50 text-red-500 text-sm p-3 rounded-lg mb-4 text-center">{error}</div>}
+                        
+                        {!isLogin && (
+                            <div className="bg-blue-500/10 border border-blue-500/30 p-3 rounded-lg mb-6 text-sm text-blue-400 text-center">
+                                Crie a sua conta agora e ganhe <strong>3 dias de teste grátis</strong> da plataforma completa.
+                            </div>
+                        )}
+
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            {!isLogin && (
+                                <div>
+                                    <label className="block text-sm text-zinc-400 mb-1">Nome Completo</label>
+                                    <input type="text" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full bg-zinc-900 border border-zinc-800 text-white rounded-lg p-3 focus:outline-none focus:border-green-500" />
+                                </div>
+                            )}
+                            <div>
+                                <label className="block text-sm text-zinc-400 mb-1">E-mail</label>
+                                <input type="email" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full bg-zinc-900 border border-zinc-800 text-white rounded-lg p-3 focus:outline-none focus:border-green-500" />
+                            </div>
+                            <div>
+                                <label className="block text-sm text-zinc-400 mb-1">Senha (Mín. 6 caracteres)</label>
+                                <input type="password" required minLength="6" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} className="w-full bg-zinc-900 border border-zinc-800 text-white rounded-lg p-3 focus:outline-none focus:border-green-500" />
+                            </div>
+                            <button type="submit" disabled={loading} className="w-full bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center mt-6">
+                                {loading ? <Loader2 className="animate-spin" size={18} /> : <><Lock size={18} className="mr-2" /> {isLogin ? 'Entrar Seguro' : 'Criar Conta de Teste'}</>}
+                            </button>
+                        </form>
+                        <div className="mt-6 text-center space-y-3">
+                            <button onClick={() => { setIsLogin(!isLogin); setError(''); setFormData({ name: '', email: '', password: '' }); }} className="text-sm text-green-500 hover:text-green-400 block w-full">
+                                {isLogin ? 'Não tem conta? Cadastre-se' : 'Já tem conta? Inicie sessão'}
+                            </button>
+                            {!isLogin && (
+                                <a href={PAYMENT_LINK} target="_blank" rel="noreferrer" className="text-xs text-zinc-500 hover:text-zinc-300 underline block mt-4">
+                                    Deseja efetuar o pagamento da mensalidade? Clique aqui.
+                                </a>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const SettingsPage = ({ user, categories, subscription }) => {
+            const [newCat, setNewCat] = useState('');
+            const [name, setName] = useState(user.displayName || 'Utilizador');
+            const [password, setPassword] = useState('');
+            const [msg, setMsg] = useState({ text: '', type: '' });
+
+            const daysLeft = calculateDaysRemaining(subscription?.expiresAt);
+
+            const handleAddCategory = async (e) => {
+                e.preventDefault();
+                if (newCat.trim() && !categories.includes(newCat.trim())) {
+                    const updatedCats = [...categories, newCat.trim()];
+                    await setDoc(doc(db, 'users', user.uid, 'settings', 'categories'), { list: updatedCats });
+                    setNewCat('');
+                }
+            };
+
+            const handleDeleteCategory = async (catToRemove) => {
+                const updatedCats = categories.filter(c => c !== catToRemove);
+                await setDoc(doc(db, 'users', user.uid, 'settings', 'categories'), { list: updatedCats });
+            };
+
+            const handleUpdateProfile = async (e) => {
+                e.preventDefault();
+                setMsg({ text: 'A atualizar...', type: 'info' });
+                try {
+                    await updateProfile(auth.currentUser, { displayName: name });
+                    if (password) {
+                        await updatePassword(auth.currentUser, password);
+                        setPassword('');
+                    }
+                    setMsg({ text: 'Perfil atualizado com sucesso!', type: 'success' });
+                    setTimeout(() => setMsg({text: '', type: ''}), 3000);
+                } catch (error) {
+                    setMsg({ text: 'Erro ao atualizar. Verifique se a senha tem 6 caracteres.', type: 'error' });
+                }
+            };
+
+            return (
+                <div className="max-w-4xl mx-auto space-y-8 pb-24 md:pb-0">
+                    <div>
+                        <h2 className="text-2xl font-bold text-white mb-1">Configurações</h2>
+                        <p className="text-zinc-400 text-sm">Faça a gestão da sua conta e personalize categorias.</p>
+                    </div>
+                    
+                    {/* Painel de Assinatura */}
+                    <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <h3 className="text-white font-medium flex items-center mb-1"><CreditCard size={18} className="mr-2 text-green-500"/> Plano e Assinatura</h3>
+                            <p className="text-sm text-zinc-400">O seu acesso expira em: 
+                                <strong className={`ml-1 ${daysLeft > 5 ? 'text-green-400' : 'text-red-400'}`}>
+                                    {daysLeft > 0 ? `${daysLeft} dias` : 'Hoje/Expirado'}
+                                </strong>
+                            </p>
+                        </div>
+                        <a href={PAYMENT_LINK} target="_blank" rel="noreferrer" className="bg-green-600 hover:bg-green-500 text-white text-sm font-bold py-2 px-6 rounded-lg transition-colors">
+                            Renovar Plano
+                        </a>
+                    </div>
+
+                    {msg.text && (
+                        <div className={`p-3 rounded-lg text-sm border ${msg.type === 'error' ? 'bg-red-500/10 border-red-500/50 text-red-500' : 'bg-green-500/10 border-green-500/50 text-green-500'}`}>
+                            {msg.text}
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl h-fit">
+                            <h3 className="text-white font-medium mb-6 flex items-center"><UserIcon size={18} className="mr-2 text-green-500"/> Dados da Conta</h3>
+                            <form onSubmit={handleUpdateProfile} className="space-y-4">
+                                <div>
+                                    <label className="block text-xs text-zinc-400 mb-1">Nome de Utilizador</label>
+                                    <input type="text" required value={name} onChange={e => setName(e.target.value)} className="w-full bg-black border border-zinc-800 text-white rounded-lg p-2 text-sm focus:border-green-500 outline-none" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs text-zinc-400 mb-1">E-mail (Imutável)</label>
+                                    <input type="email" disabled value={user.email} className="w-full bg-black border border-zinc-800 text-zinc-500 rounded-lg p-2 text-sm outline-none cursor-not-allowed" />
+                                </div>
+                                <div className="pt-4 border-t border-zinc-800">
+                                    <h4 className="text-sm font-medium text-white mb-4 flex items-center"><Key size={16} className="mr-2 text-zinc-400"/> Segurança</h4>
+                                    <label className="block text-xs text-zinc-400 mb-1">Nova Senha (Mín. 6 caracteres)</label>
+                                    <input type="password" minLength="6" placeholder="Deixe em branco para manter" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-black border border-zinc-800 text-white rounded-lg p-2 text-sm focus:border-green-500 outline-none" />
+                                </div>
+                                <button type="submit" className="w-full bg-green-600 hover:bg-green-500 text-white text-sm font-bold py-2 rounded-lg transition-colors mt-4">Salvar Perfil</button>
+                            </form>
+                        </div>
+                        <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl h-fit">
+                            <h3 className="text-white font-medium mb-6 flex items-center"><Tag size={18} className="mr-2 text-green-500"/> Categorias de Despesa</h3>
+                            <form onSubmit={handleAddCategory} className="flex space-x-2 mb-6">
+                                <input type="text" placeholder="Nova Categoria..." value={newCat} onChange={e => setNewCat(e.target.value)} className="flex-1 bg-black border border-zinc-800 text-white rounded-lg p-2 text-sm focus:border-green-500 outline-none" />
+                                <button type="submit" className="bg-zinc-800 hover:bg-green-600 text-white px-4 rounded-lg transition-colors"><Plus size={18} /></button>
+                            </form>
+                            <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                                {categories.map(cat => (
+                                    <div key={cat} className="flex justify-between items-center p-3 bg-black rounded-lg border border-zinc-800">
+                                        <span className="text-sm text-white">{cat}</span>
+                                        <button onClick={() => handleDeleteCategory(cat)} className="text-zinc-500 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const TransactionChart = ({ transactions, availablePeriods }) => {
+            let runningTotal = 0;
+            const chartData = availablePeriods.map(period => {
+                const plans = transactions.filter(p => p.period === period);
+                const inc = plans.filter(p => p.type === 'income').reduce((s, p) => s + p.amount, 0);
+                const exp = plans.filter(p => p.type === 'expense').reduce((s, p) => s + p.amount, 0);
+                const balance = inc - exp;
+                runningTotal += balance;
+                return { period, inc, exp, balance, acc: runningTotal };
+            });
+
+            if (chartData.length === 0 || transactions.length === 0) return <div className="text-zinc-500 text-sm mt-4 text-center py-6 border border-dashed border-zinc-800 rounded-lg">Sem dados suficientes para a projeção visual.</div>;
+
+            const maxBarValue = Math.max(...chartData.map(d => Math.max(d.inc, d.exp)), 100);
+            const height = 200;
+            const width = chartData.length * 80;
+            const barWidth = 16;
+            const gap = 4;
+            const scaleYBar = (height * 0.8) / maxBarValue;
+            const accMin = Math.min(0, ...chartData.map(d => d.acc));
+            const accMax = Math.max(0, ...chartData.map(d => d.acc));
+            const accRange = accMax - accMin || 1;
+            const zeroLineY = height - ((0 - accMin) / accRange) * height;
+
+            const linePoints = chartData.map((d, i) => {
+                const x = i * 80 + 40;
+                const y = height - ((d.acc - accMin) / accRange) * height;
+                return `${x},${y}`;
+            }).join(' ');
+
+            return (
+                <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl mt-6 overflow-x-auto custom-scrollbar">
+                    <h3 className="text-white font-medium mb-6">Evolução do Saldo (Mês a Mês)</h3>
+                    <div className="relative" style={{ minWidth: `${Math.max(width, 400)}px` }}>
+                        <svg width="100%" height={height} style={{ overflow: 'visible' }}>
+                            {accMin < 0 && <line x1="0" y1={zeroLineY} x2="100%" y2={zeroLineY} stroke="#3f3f46" strokeDasharray="4 4" strokeWidth="1" />}
+                            {chartData.map((d, i) => {
+                                const xCenter = i * 80 + 40;
+                                const hInc = d.inc * scaleYBar;
+                                const hExp = d.exp * scaleYBar;
+                                return (
+                                    <g key={`bars-${i}`}>
+                                        <rect x={xCenter - barWidth - (gap/2)} y={height - hInc} width={barWidth} height={hInc} fill="#22c55e" rx="2" opacity="0.8" />
+                                        <rect x={xCenter + (gap/2)} y={height - hExp} width={barWidth} height={hExp} fill="#ef4444" rx="2" opacity="0.8" />
+                                    </g>
+                                );
+                            })}
+                            <polyline points={linePoints} fill="none" stroke="#3b82f6" strokeWidth="3" />
+                            {chartData.map((d, i) => (
+                                <circle key={`dot-${i}`} cx={i * 80 + 40} cy={height - ((d.acc - accMin) / accRange) * height} r="4" fill="#3b82f6" stroke="#18181b" strokeWidth="2" />
+                            ))}
+                        </svg>
+                        <div className="flex mt-4">
+                            {chartData.map((d, i) => (
+                                <div key={`label-${i}`} className="text-center text-[10px] text-zinc-500 font-medium" style={{ width: '80px' }}>
+                                    {formatPeriodLabel(d.period)}
+                                    <div className={`mt-1 font-bold ${d.acc >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
+                                        {d.acc >= 0 ? '+' : ''}{Math.round(d.acc)}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- COMPONENTE GESTOR DE TRANSAÇÕES (ORÇAMENTO E REAIS) ---
+        const TransactionManager = ({ 
+            user, transactions, expenseCategories, collectionName, title, subtitle, typeLabel, newLabel, mobileInputOnly
+        }) => {
+            const currentYearMonth = new Date().toISOString().slice(0, 7);
+            const availablePeriods = useMemo(() => {
+                if (transactions.length === 0) return [currentYearMonth];
+                return Array.from(new Set(transactions.map(p => p.period))).sort();
+            }, [transactions]);
+            
+            const [selectedPeriod, setSelectedPeriod] = useState(currentYearMonth);
+            const [editingId, setEditingId] = useState(null);
+            const [isImporting, setIsImporting] = useState(false);
+            const fileInputRef = useRef(null);
+            const incomeCategories = ['Salário', 'Fonte diversa'];
+
+            const defaultForm = { 
+                type: 'expense', description: '', amount: '', category: expenseCategories[0] || 'Outros', 
+                isInstallment: false, installmentsCount: 2, isRecurring: false, recurringEndPeriod: ''
+            };
+            const [formData, setFormData] = useState(defaultForm);
+
+            const activeCategoryList = formData.type === 'income' ? incomeCategories : expenseCategories;
+            const currentMonthTransactions = useMemo(() => transactions.filter(p => p.period === selectedPeriod), [transactions, selectedPeriod]);
+
+            // --- Cálculos ---
+            const totalExpense = currentMonthTransactions.reduce((acc, curr) => curr.type === 'expense' ? acc + curr.amount : acc, 0);
+            const totalIncome = currentMonthTransactions.reduce((acc, curr) => curr.type === 'income' ? acc + curr.amount : acc, 0);
+            const balance = totalIncome - totalExpense;
+
+            const currentYear = selectedPeriod.split('-')[0];
+            const currentYearTransactions = useMemo(() => transactions.filter(p => p.period.startsWith(currentYear)), [transactions, currentYear]);
+
+            const annualIncome = currentYearTransactions.reduce((acc, curr) => curr.type === 'income' ? acc + curr.amount : acc, 0);
+            const annualExpense = currentYearTransactions.reduce((acc, curr) => curr.type === 'expense' ? acc + curr.amount : acc, 0);
+            const annualBalance = annualIncome - annualExpense;
+
+            const annualExpensesByCategory = useMemo(() => {
+                const categories = currentYearTransactions
+                    .filter(p => p.type === 'expense')
+                    .reduce((acc, curr) => { acc[curr.category] = (acc[curr.category] || 0) + curr.amount; return acc; }, {});
+                return Object.entries(categories).sort((a, b) => b[1] - a[1]);
+            }, [currentYearTransactions]);
+
+            useEffect(() => {
+                if (!availablePeriods.includes(selectedPeriod)) setSelectedPeriod(availablePeriods[0] || currentYearMonth);
+            }, [availablePeriods]);
+
+            const handleAddMonth = () => {
+                const lastPeriod = availablePeriods[availablePeriods.length - 1] || currentYearMonth;
+                setSelectedPeriod(addMonthsToPeriod(lastPeriod, 1));
+            };
+
+            const handleTypeChange = (newType) => setFormData({...formData, type: newType, category: newType === 'income' ? incomeCategories[0] : (expenseCategories[0] || 'Outros')});
+
+            const handleEdit = (item) => {
+                setEditingId(item.id);
+                setFormData({ 
+                    type: item.type, description: item.description, amount: item.amount, category: item.category, 
+                    isInstallment: false, installmentsCount: 2, isRecurring: false, recurringEndPeriod: '' 
+                });
+            };
+
+            const handleDelete = async (id) => {
+                try { await deleteDoc(doc(db, 'users', user.uid, collectionName, id)); } 
+                catch(e) { alert("Erro ao apagar lançamento."); }
+            };
+
+            // --- LÓGICA DE IMPORTAÇÃO CSV ---
+            const downloadCSVTemplate = () => {
+                const bom = "\uFEFF"; // Garante que o Excel abre com as colunas separadas e a codificação UTF-8 correta (Acentos)
+                const headers = "Tipo;Descricao;Valor;Categoria;Periodo;Parcelado;Qtd_Parcelas;Recorrente;Fim_Recorrencia\n";
+                const row1 = "Despesa;Conta da Luz;150,50;Habitação;2026-05;Nao;;Nao;\n";
+                const row2 = "Receita;Salário Fixo;5000,00;Salário;2026-05;Nao;;Sim;2026-12\n";
+                const row3 = "Despesa;Geladeira Nova;2500,00;Outros;2026-05;Sim;10;Nao;\n";
+                const row4 = "Despesa;Mensalidade Escolar;600,00;Educação;2026-05;Nao;;Sim;2026-12\n";
+                
+                const csvContent = bom + headers + row1 + row2 + row3 + row4;
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                
+                const link = document.createElement("a");
+                link.setAttribute("href", url);
+                link.setAttribute("download", "finhub_modelo_importacao.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
+
+            const processCSV = async (csvText) => {
+                setIsImporting(true);
+                try {
+                    const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
+                    if (lines.length < 2) {
+                        alert("Arquivo CSV vazio ou sem dados validos.");
+                        setIsImporting(false);
+                        return;
+                    }
+                    
+                    const delimiter = lines[0].includes(';') ? ';' : ',';
+                    const headers = lines[0].split(delimiter).map(h => h.trim().toLowerCase());
+                    
+                    let batch = writeBatch(db);
+                    let operationCount = 0;
+                    let totalAdded = 0;
+
+                    const commitBatchIfNeeded = async () => {
+                        if (operationCount > 400) {
+                            await batch.commit();
+                            batch = writeBatch(db);
+                            operationCount = 0;
+                        }
+                    };
+
+                    for (let i = 1; i < lines.length; i++) {
+                        const splitRegex = new RegExp(`${delimiter}(?=(?:(?:[^"]*"){2})*[^"]*$)`);
+                        const row = lines[i].split(splitRegex).map(v => v.replace(/^"|"$/g, '').trim());
+                        
+                        const getVal = (colName) => {
+                            const idx = headers.findIndex(h => h.includes(colName));
+                            return idx !== -1 && row[idx] ? row[idx] : '';
+                        };
+
+                        const tipoStr = getVal('tipo').toLowerCase();
+                        const type = tipoStr.includes('receita') ? 'income' : 'expense';
+                        const description = getVal('descricao') || 'Importado via CSV';
+                        
+                        let rawAmount = getVal('valor').replace(/R\$\s?/g, '').trim();
+                        if (rawAmount.includes(',') && rawAmount.includes('.')) {
+                            rawAmount = rawAmount.replace(/\./g, '').replace(',', '.'); 
+                        } else if (rawAmount.includes(',')) {
+                            rawAmount = rawAmount.replace(',', '.'); 
+                        }
+                        const amount = parseFloat(rawAmount) || 0;
+                        
+                        const category = getVal('categoria') || 'Outros';
+                        const period = getVal('periodo'); 
+                        const isInstallment = getVal('parcelado').toLowerCase() === 'sim';
+                        const installmentsCount = parseInt(getVal('qtd_parcelas')) || 2;
+                        const isRecurring = getVal('recorrente').toLowerCase() === 'sim';
+                        const recurringEndPeriod = getVal('fim_recorrencia');
+
+                        if (isNaN(amount) || !period || amount <= 0) continue; 
+
+                        if (isRecurring && recurringEndPeriod >= period) {
+                            let currentIter = period;
+                            let iterCount = 0;
+                            while (currentIter <= recurringEndPeriod && iterCount < 120) {
+                                const newId = Date.now().toString() + "_" + i + "_" + iterCount;
+                                batch.set(doc(db, 'users', user.uid, collectionName, newId), {
+                                    type, category, amount, period: currentIter,
+                                    description, isInstallment: false, isRecurring: true
+                                });
+                                operationCount++;
+                                await commitBatchIfNeeded();
+                                
+                                currentIter = addMonthsToPeriod(currentIter, 1);
+                                iterCount++;
+                                totalAdded++;
+                            }
+                        } else if (isInstallment && installmentsCount > 1 && type === 'expense') {
+                            for (let j = 0; j < installmentsCount; j++) {
+                                const targetPeriod = addMonthsToPeriod(period, j);
+                                const newId = Date.now().toString() + "_" + i + "_" + j;
+                                const dataObj = {
+                                    type, category, amount, period: targetPeriod,
+                                    description: `${description} (${j + 1}/${installmentsCount})`, isInstallment: true
+                                };
+                                
+                                batch.set(doc(db, 'users', user.uid, collectionName, newId), dataObj);
+                                operationCount++;
+                                await commitBatchIfNeeded();
+                                
+                                if (collectionName === 'plannedTransactions') {
+                                    batch.set(doc(db, 'users', user.uid, 'actualTransactions', newId), dataObj);
+                                    operationCount++;
+                                    await commitBatchIfNeeded();
+                                }
+                                totalAdded++;
+                            }
+                        } else {
+                            const newId = Date.now().toString() + "_" + i;
+                            batch.set(doc(db, 'users', user.uid, collectionName, newId), {
+                                type, category, amount, period, description, isInstallment: false, isRecurring: false
+                            });
+                            operationCount++;
+                            await commitBatchIfNeeded();
+                            totalAdded++;
+                        }
+                    }
+                    
+                    if (operationCount > 0) {
+                        await batch.commit();
+                    }
+                    alert(`Importação concluída com sucesso! ${totalAdded} lançamentos foram gerados e sincronizados.`);
+                } catch (error) {
+                    console.error(error);
+                    alert("Erro ao importar CSV. Verifique se as colunas estão idênticas ao modelo fornecido.");
+                } finally {
+                    setIsImporting(false);
+                }
+            };
+
+            const handleFileUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    await processCSV(event.target.result);
+                    e.target.value = ''; 
+                };
+                reader.readAsText(file);
+            };
+
+            // --- LÓGICA DE SUBMISSÃO MANUAL ---
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                const baseAmount = parseFloat(formData.amount);
+                if (isNaN(baseAmount)) return;
+
+                if (editingId) {
+                    try {
+                        await updateDoc(doc(db, 'users', user.uid, collectionName, editingId), { 
+                            type: formData.type, category: formData.category, description: formData.description, amount: baseAmount, period: selectedPeriod 
+                        });
+                        setEditingId(null);
+                        setFormData(defaultForm);
+                    } catch (err) { alert("Erro ao atualizar."); }
+                    return;
+                }
+
+                try {
+                    const batch = writeBatch(db);
+                    
+                    if (formData.isRecurring) {
+                        if (!formData.recurringEndPeriod || formData.recurringEndPeriod < selectedPeriod) {
+                            alert("Selecione um mês final válido."); return;
+                        }
+                        let currentIter = selectedPeriod;
+                        let iterCount = 0;
+                        while (currentIter <= formData.recurringEndPeriod && iterCount < 120) {
+                            const newId = Date.now().toString() + iterCount;
+                            const docRef = doc(db, 'users', user.uid, collectionName, newId);
+                            batch.set(docRef, {
+                                type: formData.type, category: formData.category, amount: baseAmount, period: currentIter,
+                                description: formData.description, isInstallment: false, isRecurring: true
+                            });
+                            currentIter = addMonthsToPeriod(currentIter, 1);
+                            iterCount++;
+                        }
+                        await batch.commit();
+
+                    } else if (formData.isInstallment && formData.installmentsCount > 1 && formData.type === 'expense') {
+                        // LÓGICA DE ESPELHAMENTO
+                        for (let i = 0; i < formData.installmentsCount; i++) {
+                            const targetPeriod = addMonthsToPeriod(selectedPeriod, i);
+                            const newId = Date.now().toString() + i;
+                            const dataObj = {
+                                type: formData.type, category: formData.category, amount: baseAmount, period: targetPeriod,
+                                description: `${formData.description} (${i + 1}/${formData.installmentsCount})`, isInstallment: true
+                            };
+                            
+                            batch.set(doc(db, 'users', user.uid, collectionName, newId), dataObj);
+                            if (collectionName === 'plannedTransactions') {
+                                batch.set(doc(db, 'users', user.uid, 'actualTransactions', newId), dataObj);
+                            }
+                        }
+                        await batch.commit();
+
+                    } else {
+                        const newId = Date.now().toString();
+                        await setDoc(doc(db, 'users', user.uid, collectionName, newId), {
+                            type: formData.type, category: formData.category, amount: baseAmount, period: selectedPeriod, description: formData.description, isInstallment: false, isRecurring: false
+                        });
+                    }
+                    
+                    setFormData(defaultForm);
+                } catch (err) { alert("Erro ao guardar dados no Firestore."); }
+            };
+
+            return (
+                <div className="space-y-6 pb-24 md:pb-0">
+                    {!mobileInputOnly && (
+                        <>
+                            <div>
+                                <h2 className="text-2xl font-bold text-white mb-1">{title}</h2>
+                                <p className="text-zinc-400 text-sm">{subtitle}</p>
+                            </div>
+
+                            <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl relative overflow-hidden">
+                                <div className="absolute top-0 right-0 w-64 h-64 bg-green-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
+                                <div className="flex items-center mb-6">
+                                    <PieChart size={24} className="text-blue-500 mr-3" />
+                                    <h3 className="text-xl font-bold text-white">Resumo Anual ({currentYear})</h3>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
+                                    <div className="space-y-4">
+                                        <div className="bg-black/50 border border-zinc-800/80 p-4 rounded-xl flex justify-between items-center backdrop-blur-sm">
+                                            <span className="text-sm font-medium text-zinc-400">Receitas Acumuladas</span>
+                                            <span className="text-xl font-bold text-green-400">R$ {annualIncome.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                                        </div>
+                                        <div className="bg-black/50 border border-zinc-800/80 p-4 rounded-xl flex justify-between items-center backdrop-blur-sm">
+                                            <span className="text-sm font-medium text-zinc-400">Despesas Acumuladas</span>
+                                            <span className="text-xl font-bold text-red-400">R$ {annualExpense.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                                        </div>
+                                        <div className={`border p-4 rounded-xl flex justify-between items-center backdrop-blur-sm ${annualBalance >= 0 ? 'bg-blue-900/20 border-blue-900/50' : 'bg-red-900/20 border-red-900/50'}`}>
+                                            <span className="text-sm font-medium text-zinc-300">Balanço Final</span>
+                                            <span className={`text-2xl font-black ${annualBalance >= 0 ? 'text-blue-400' : 'text-red-400'}`}>R$ {annualBalance.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <h4 className="text-xs font-bold text-zinc-500 mb-4 uppercase tracking-wider flex items-center"><BarChart3 size={14} className="mr-2" /> {typeLabel === 'Previstas' ? 'Projeção' : 'Distribuição'} de Despesas</h4>
+                                        <div className="space-y-4 max-h-[220px] overflow-y-auto custom-scrollbar pr-3">
+                                            {annualExpensesByCategory.length === 0 ? <p className="text-sm text-zinc-500 text-center py-4 border border-dashed border-zinc-800 rounded-lg">Nenhuma despesa registada neste ano.</p> : (
+                                                annualExpensesByCategory.map(([cat, amount]) => {
+                                                    const percentage = annualExpense > 0 ? (amount / annualExpense) * 100 : 0;
+                                                    return (
+                                                        <div key={cat} className="group">
+                                                            <div className="flex justify-between text-xs mb-1.5">
+                                                                <span className="font-medium text-zinc-300 group-hover:text-white transition-colors">{cat}</span>
+                                                                <span className="text-zinc-400 font-medium">R$ {amount.toLocaleString('pt-BR', {minimumFractionDigits: 2})} <span className="text-zinc-600 ml-1">({percentage.toFixed(1)}%)</span></span>
+                                                            </div>
+                                                            <div className="w-full bg-zinc-800/80 rounded-full h-2 overflow-hidden">
+                                                                <div className="bg-zinc-600 h-2 rounded-full group-hover:bg-blue-500 transition-colors" style={{ width: `${percentage}%` }}></div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <TransactionChart transactions={transactions} availablePeriods={availablePeriods} />
+                        </>
+                    )}
+
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-zinc-900 border border-zinc-800 p-4 rounded-xl mt-6">
+                        <div>
+                            <h3 className="text-lg font-bold text-white mb-1">
+                                {mobileInputOnly ? 'Lançamento Rápido' : 'Lançamentos Mensais'}
+                            </h3>
+                            <p className="text-zinc-400 text-xs">
+                                {mobileInputOnly ? 'Adicione gastos e receitas ao seu fluxo de caixa.' : 'Selecione o mês para visualizar ou adicionar dados.'}
+                            </p>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <div className="flex items-center space-x-2 bg-black border border-zinc-800 rounded-lg p-1">
+                                <Calendar size={18} className="text-zinc-400 ml-2" />
+                                <select className="bg-transparent text-white p-2 outline-none font-medium" value={selectedPeriod} onChange={(e) => setSelectedPeriod(e.target.value)}>
+                                    {availablePeriods.includes(selectedPeriod) ? null : <option value={selectedPeriod}>{formatPeriodLabel(selectedPeriod)}</option>}
+                                    {availablePeriods.map(p => <option key={p} value={p}>{formatPeriodLabel(p)} ({p})</option>)}
+                                </select>
+                            </div>
+                            {!mobileInputOnly && (
+                                <button onClick={handleAddMonth} className="flex items-center px-3 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-colors border border-zinc-700">
+                                    <Plus size={18} className="md:mr-2" /><span className="hidden md:inline text-sm font-medium">Add Mês</span>
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className={`grid grid-cols-1 ${mobileInputOnly ? '' : 'lg:grid-cols-3'} gap-6`}>
+                        <div className={`${mobileInputOnly ? 'col-span-1' : 'lg:col-span-1'} bg-zinc-900 border border-zinc-800 p-6 rounded-xl h-fit`}>
+                            
+                            <div className="flex flex-col xl:flex-row xl:justify-between xl:items-center mb-4 gap-3">
+                                <h3 className="text-white font-medium flex items-center">
+                                    {editingId ? <Edit2 size={18} className="mr-2 text-blue-500"/> : <ListPlus size={18} className="mr-2 text-green-500"/>}
+                                    {editingId ? 'Editar Lançamento' : `${newLabel}`}
+                                </h3>
+                                
+                                {collectionName === 'plannedTransactions' && !editingId && !mobileInputOnly && (
+                                    <div className="flex space-x-2">
+                                        <button type="button" onClick={downloadCSVTemplate} className="flex items-center p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition-colors" title="Baixar Modelo CSV">
+                                            <Download size={14} className="mr-1" /> <span className="text-xs">Modelo</span>
+                                        </button>
+                                        <button type="button" onClick={() => fileInputRef.current.click()} disabled={isImporting} className="flex items-center p-2 bg-green-600/20 hover:bg-green-600/40 text-green-400 rounded-lg transition-colors disabled:opacity-50" title="Importar CSV preenchido">
+                                            {isImporting ? <Loader2 size={14} className="animate-spin mr-1" /> : <Upload size={14} className="mr-1" />}
+                                            <span className="text-xs">{isImporting ? 'Lendo...' : 'Importar'}</span>
+                                        </button>
+                                        <input type="file" accept=".csv" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
+                                    </div>
+                                )}
+                            </div>
+
+                            <form onSubmit={handleSubmit} className="space-y-4">
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label className="block text-xs text-zinc-400 mb-1">Tipo</label>
+                                        <select className={`w-full bg-black border border-zinc-800 text-white rounded-lg p-2 text-sm outline-none focus:border-green-500 ${formData.type === 'income' ? 'text-green-400' : 'text-red-400'}`} value={formData.type} onChange={e => handleTypeChange(e.target.value)}>
+                                            <option value="expense">Despesa</option>
+                                            <option value="income">Receita</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-zinc-400 mb-1">Valor (R$)</label>
+                                        <input type="number" step="0.01" required placeholder="0.00" className="w-full bg-black border border-zinc-800 text-white rounded-lg p-2 text-sm focus:border-green-500 outline-none" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs text-zinc-400 mb-1">Descrição</label>
+                                    <input type="text" required placeholder="Ex: Conta da Luz" className="w-full bg-black border border-zinc-800 text-white rounded-lg p-2 text-sm focus:border-green-500 outline-none" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="block text-xs text-zinc-400 mb-1">Categoria</label>
+                                    <select className="w-full bg-black border border-zinc-800 text-white rounded-lg p-2 text-sm focus:border-green-500 outline-none" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})}>
+                                        {activeCategoryList.map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                </div>
+
+                                {!editingId && (
+                                    <div className="pt-2 space-y-3 border-t border-zinc-800 mt-4">
+                                        {formData.type === 'expense' && (
+                                            <label className="flex items-center space-x-2 text-sm text-zinc-300 cursor-pointer">
+                                                <input type="checkbox" className="rounded bg-zinc-800 border-zinc-700 text-green-500 focus:ring-green-500" checked={formData.isInstallment} onChange={e => setFormData({...formData, isInstallment: e.target.checked, isRecurring: false})} />
+                                                <span>Compra parcelada?</span>
+                                            </label>
+                                        )}
+                                        {formData.isInstallment && formData.type === 'expense' && (
+                                            <div className="bg-black p-3 rounded-lg border border-zinc-800 mt-2">
+                                                <label className="block text-xs text-zinc-400 mb-1">Quantidade de Meses</label>
+                                                <input type="number" min="2" max="48" className="w-full bg-zinc-900 border border-zinc-700 text-white rounded-lg p-2 text-sm outline-none" value={formData.installmentsCount} onChange={e => setFormData({...formData, installmentsCount: parseInt(e.target.value)})} />
+                                            </div>
+                                        )}
+                                        <label className="flex items-center space-x-2 text-sm text-zinc-300 cursor-pointer">
+                                            <input type="checkbox" className="rounded bg-zinc-800 border-zinc-700 text-green-500 focus:ring-green-500" checked={formData.isRecurring} onChange={e => setFormData({...formData, isRecurring: e.target.checked, isInstallment: false, recurringEndPeriod: formData.recurringEndPeriod || addMonthsToPeriod(selectedPeriod, 11)})} />
+                                            <span>Lançamento recorrente?</span>
+                                        </label>
+                                        {formData.isRecurring && (
+                                            <div className="bg-black p-3 rounded-lg border border-zinc-800 mt-2">
+                                                <label className="block text-xs text-zinc-400 mb-1">Repetir até qual mês?</label>
+                                                <input type="month" required className="w-full bg-zinc-900 border border-zinc-700 text-white rounded-lg p-2 text-sm outline-none focus:border-green-500" value={formData.recurringEndPeriod} min={selectedPeriod} onChange={e => setFormData({...formData, recurringEndPeriod: e.target.value})} />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                <div className="flex space-x-2 pt-2">
+                                    {editingId && <button type="button" onClick={() => { setEditingId(null); setFormData(defaultForm); }} className="w-1/3 bg-zinc-800 hover:bg-zinc-700 text-white text-sm font-bold py-2 rounded-lg transition-colors border border-zinc-700">Cancelar</button>}
+                                    <button type="submit" className={`flex-1 text-white text-sm font-bold py-2 rounded-lg transition-colors ${editingId ? 'bg-blue-600 hover:bg-blue-500' : 'bg-green-600 hover:bg-green-500'}`}>
+                                        {editingId ? 'Salvar Alterações' : 'Salvar Dados'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        {!mobileInputOnly && (
+                            <div className="lg:col-span-2 space-y-4">
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl">
+                                        <p className="text-[10px] text-zinc-400 uppercase tracking-wider mb-1">Receitas {typeLabel}</p>
+                                        <p className="text-lg font-bold text-green-400">R$ {totalIncome.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                                    </div>
+                                    <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl">
+                                        <p className="text-[10px] text-zinc-400 uppercase tracking-wider mb-1">Despesas {typeLabel}</p>
+                                        <p className="text-lg font-bold text-red-400">R$ {totalExpense.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                                    </div>
+                                    <div className={`border p-4 rounded-xl ${balance >= 0 ? 'bg-blue-900/10 border-blue-900/30' : 'bg-red-900/10 border-red-900/30'}`}>
+                                        <p className="text-[10px] text-zinc-400 uppercase tracking-wider mb-1">Saldo do Mês</p>
+                                        <p className={`text-lg font-bold ${balance >= 0 ? 'text-blue-400' : 'text-red-400'}`}>R$ {balance.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                                    </div>
+                                </div>
+                                
+                                <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h3 className="text-white font-medium">Lançamentos em {formatPeriodLabel(selectedPeriod)}</h3>
+                                    </div>
+                                    <div className="space-y-2 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
+                                        {currentMonthTransactions.length === 0 ? <p className="text-zinc-500 text-sm text-center py-8">Nenhum item registado para este mês.</p> : (
+                                            currentMonthTransactions.map(item => (
+                                                <div key={item.id} className="flex justify-between items-center p-3 bg-black rounded-lg border border-zinc-800 hover:border-zinc-700 transition-colors group">
+                                                    <div className="flex items-center space-x-3">
+                                                        <div className={`p-2 rounded-lg ${item.type === 'income' ? 'bg-green-500/10 text-green-500' : 'bg-zinc-900 text-zinc-400'}`}>
+                                                            {item.type === 'income' ? <TrendingUp size={16} /> : <Tag size={16} />}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-sm font-medium text-white">
+                                                                {item.description}
+                                                                {item.isRecurring && <span className="ml-2 text-[10px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded">Recorrente</span>}
+                                                                {item.isInstallment && <span className="ml-2 text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded">Parcelado</span>}
+                                                            </p>
+                                                            <p className="text-[10px] text-zinc-500 uppercase tracking-wider">{item.category}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center space-x-4">
+                                                        <span className={`font-medium ${item.type === 'expense' ? 'text-red-400' : 'text-green-400'}`}>
+                                                            {item.type === 'expense' ? '-' : '+'}R$ {item.amount.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                                                        </span>
+                                                        <div className="flex space-x-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <button onClick={() => handleEdit(item)} className="p-1.5 bg-zinc-800 hover:bg-blue-600 text-zinc-400 hover:text-white rounded transition-colors"><Edit2 size={14} /></button>
+                                                            <button onClick={() => handleDelete(item.id)} className="p-1.5 bg-zinc-800 hover:bg-red-600 text-zinc-400 hover:text-white rounded transition-colors"><Trash2 size={14} /></button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // --- DASHBOARD DE COMPARAÇÃO (PREVISTO VS REAL) ---
+        const ComparisonDashboard = ({ plannedTransactions, actualTransactions, expenseCategories }) => {
+            const currentYearMonth = new Date().toISOString().slice(0, 7);
+            
+            const availablePeriods = useMemo(() => {
+                const periods = new Set([currentYearMonth, ...plannedTransactions.map(p => p.period), ...actualTransactions.map(a => a.period)]);
+                return Array.from(periods).sort();
+            }, [plannedTransactions, actualTransactions]);
+
+            const [selectedPeriod, setSelectedPeriod] = useState(currentYearMonth);
+
+            const plannedMonth = useMemo(() => plannedTransactions.filter(p => p.period === selectedPeriod), [plannedTransactions, selectedPeriod]);
+            const actualMonth = useMemo(() => actualTransactions.filter(a => a.period === selectedPeriod), [actualTransactions, selectedPeriod]);
+
+            const pInc = plannedMonth.filter(t => t.type === 'income').reduce((a,b) => a+b.amount, 0);
+            const pExp = plannedMonth.filter(t => t.type === 'expense').reduce((a,b) => a+b.amount, 0);
+            const pBal = pInc - pExp;
+
+            const aInc = actualMonth.filter(t => t.type === 'income').reduce((a,b) => a+b.amount, 0);
+            const aExp = actualMonth.filter(t => t.type === 'expense').reduce((a,b) => a+b.amount, 0);
+            const aBal = aInc - aExp;
+
+            const categoryComparison = useMemo(() => {
+                return expenseCategories.map(cat => {
+                    const pCat = plannedMonth.filter(t => t.type === 'expense' && t.category === cat).reduce((a,b) => a+b.amount, 0);
+                    const aCat = actualMonth.filter(t => t.type === 'expense' && t.category === cat).reduce((a,b) => a+b.amount, 0);
+                    return { cat, planned: pCat, actual: aCat };
+                }).filter(item => item.planned > 0 || item.actual > 0); 
+            }, [plannedMonth, actualMonth, expenseCategories]);
+
+            return (
+                <div className="space-y-6 pb-24 md:pb-0">
+                    <div>
+                        <h2 className="text-2xl font-bold text-white mb-1">Visão Geral</h2>
+                        <p className="text-zinc-400 text-sm">Compare o seu Orçamento Previsto com os Gastos Reais do mês.</p>
+                    </div>
+
+                    <div className="flex items-center space-x-2 bg-zinc-900 border border-zinc-800 p-4 rounded-xl w-fit">
+                        <Calendar size={18} className="text-zinc-400" />
+                        <select className="bg-transparent text-white p-1 outline-none font-medium" value={selectedPeriod} onChange={(e) => setSelectedPeriod(e.target.value)}>
+                            {availablePeriods.map(p => <option key={p} value={p}>{formatPeriodLabel(p)} ({p})</option>)}
+                        </select>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl relative overflow-hidden">
+                            <h3 className="text-zinc-400 text-sm font-medium mb-4 flex items-center"><TrendingUp size={16} className="mr-2 text-green-500" /> Receitas</h3>
+                            <div className="flex justify-between items-end mb-2">
+                                <div>
+                                    <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Previsto</p>
+                                    <p className="text-lg font-medium text-zinc-300">R$ {pInc.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Realizado</p>
+                                    <p className="text-2xl font-bold text-green-400">R$ {aInc.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl relative overflow-hidden">
+                            <h3 className="text-zinc-400 text-sm font-medium mb-4 flex items-center"><TrendingDown size={16} className="mr-2 text-red-500" /> Despesas</h3>
+                            <div className="flex justify-between items-end mb-2">
+                                <div>
+                                    <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Previsto</p>
+                                    <p className="text-lg font-medium text-zinc-300">R$ {pExp.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Realizado</p>
+                                    <p className={`text-2xl font-bold ${aExp > pExp ? 'text-red-500' : 'text-yellow-500'}`}>R$ {aExp.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                                </div>
+                            </div>
+                            <div className="w-full bg-zinc-800 rounded-full h-1.5 mt-2">
+                                <div className={`h-1.5 rounded-full ${aExp > pExp ? 'bg-red-500' : 'bg-yellow-500'}`} style={{ width: `${pExp > 0 ? Math.min((aExp/pExp)*100, 100) : (aExp > 0 ? 100 : 0)}%` }}></div>
+                            </div>
+                        </div>
+
+                        <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl relative overflow-hidden">
+                            <h3 className="text-zinc-400 text-sm font-medium mb-4 flex items-center"><DollarSign size={16} className="mr-2 text-blue-500" /> Saldo</h3>
+                            <div className="flex justify-between items-end mb-2">
+                                <div>
+                                    <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Previsto</p>
+                                    <p className="text-lg font-medium text-zinc-300">R$ {pBal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Realizado</p>
+                                    <p className={`text-2xl font-bold ${aBal >= 0 ? 'text-blue-400' : 'text-red-400'}`}>R$ {aBal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl">
+                        <h3 className="text-lg font-semibold text-white mb-6 flex items-center">
+                            <PieChart className="mr-2 text-blue-500" size={20} />
+                            Cumprimento do Orçamento por Categoria
+                        </h3>
+                        <div className="space-y-5 max-h-[400px] overflow-y-auto pr-4 custom-scrollbar">
+                            {categoryComparison.length === 0 ? <p className="text-zinc-500 text-sm text-center py-4">Sem dados para este mês.</p> : (
+                                categoryComparison.map(({ cat, planned, actual }) => {
+                                    const percentage = planned > 0 ? Math.min((actual / planned) * 100, 100) : (actual > 0 ? 100 : 0);
+                                    const isOverBudget = actual > planned && planned > 0;
+                                    
+                                    return (
+                                        <div key={cat} className="group">
+                                            <div className="flex justify-between text-sm mb-1.5">
+                                                <span className="text-zinc-300 font-medium">{cat}</span>
+                                                <span className={isOverBudget ? 'text-red-400 font-bold' : 'text-zinc-400'}>
+                                                    R$ {actual.toLocaleString('pt-BR', {minimumFractionDigits: 2})} <span className="text-zinc-600 font-normal mx-1">/</span> R$ {planned.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                                                </span>
+                                            </div>
+                                            <div className="w-full bg-zinc-800 rounded-full h-2.5 overflow-hidden">
+                                                <div className={`h-2.5 rounded-full transition-all duration-500 ${isOverBudget ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: `${percentage}%` }}></div>
+                                            </div>
+                                            {isOverBudget && <p className="text-[10px] text-red-500 mt-1 text-right">Ultrapassou o limite orçado em R$ {(actual - planned).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>}
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // --- MAIN APP COMPONENT ---
+        const App = () => {
+            const [user, setUser] = useState(null); 
+            const [authLoading, setAuthLoading] = useState(true);
+            const [isMobile, setIsMobile] = useState(false);
+            const [currentTab, setCurrentTab] = useState('dashboard'); 
+            
+            const [plannedTransactions, setPlannedTransactions] = useState([]);
+            const [actualTransactions, setActualTransactions] = useState([]);
+            const [expenseCategories, setExpenseCategories] = useState(INITIAL_CATEGORIES);
+            const [subscription, setSubscription] = useState(null);
+
+            useEffect(() => {
+                const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+                    setUser(currentUser);
+                    setAuthLoading(false);
+                });
+                return () => unsubscribe();
+            }, []);
+
+            useEffect(() => {
+                if (!user) {
+                    setPlannedTransactions([]); setActualTransactions([]); setExpenseCategories(INITIAL_CATEGORIES); setSubscription(null);
+                    return;
+                }
+                const unsubPlans = onSnapshot(collection(db, 'users', user.uid, 'plannedTransactions'), (snapshot) => {
+                    setPlannedTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                });
+                const unsubActuals = onSnapshot(collection(db, 'users', user.uid, 'actualTransactions'), (snapshot) => {
+                    setActualTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                });
+                const unsubCats = onSnapshot(doc(db, 'users', user.uid, 'settings', 'categories'), (docSnap) => {
+                    if (docSnap.exists() && docSnap.data().list) setExpenseCategories(docSnap.data().list);
+                });
+                const unsubSub = onSnapshot(doc(db, 'users', user.uid, 'subscription', 'info'), (docSnap) => {
+                    if (docSnap.exists()) setSubscription(docSnap.data());
+                });
+
+                return () => { unsubPlans(); unsubActuals(); unsubCats(); unsubSub(); };
+            }, [user]);
+
+            useEffect(() => {
+                const handleResize = () => {
+                    const mobile = window.innerWidth < 768;
+                    setIsMobile(mobile);
+                    if (mobile && (currentTab === 'budget' || currentTab === 'settings' || currentTab === 'admin')) {
+                        setCurrentTab('dashboard');
+                    }
+                };
+                handleResize(); 
+                window.addEventListener('resize', handleResize);
+                return () => window.removeEventListener('resize', handleResize);
+            }, [currentTab]);
+
+            if (authLoading) return <div className="flex h-screen items-center justify-center bg-black text-green-500"><Loader2 className="animate-spin" size={48} /></div>;
+            if (!user) return <AuthPage />;
+
+            const isAdmin = user.email === ADMIN_EMAIL;
+            const daysLeft = calculateDaysRemaining(subscription?.expiresAt);
+            const isPaywallActive = !isAdmin && daysLeft <= 0;
+
+            // Se o utilizador não for admin e a subscrição expirou, tranca tudo
+            if (isPaywallActive) {
+                return <PaywallScreen user={user} onLogout={() => signOut(auth)} />;
+            }
+
+            return (
+                <div className="flex h-screen bg-black font-sans overflow-hidden">
+                    {/* DESKTOP SIDEBAR */}
+                    {!isMobile && (
+                        <aside className="w-64 bg-zinc-950 border-r border-zinc-900 flex flex-col z-20">
+                            <div className="p-6">
+                                <h1 className="text-2xl font-black text-white tracking-tighter">FIN<span className="text-green-500">HUB</span></h1>
+                                <p className="text-xs text-zinc-500 mt-1">Gestão Familiar Avançada</p>
+                            </div>
+                            <nav className="flex-1 px-4 space-y-2 overflow-y-auto custom-scrollbar">
+                                <SidebarItem icon={Activity} label="Visão Geral" isActive={currentTab === 'dashboard'} onClick={() => setCurrentTab('dashboard')} />
+                                <SidebarItem icon={Target} label="Orçamento" isActive={currentTab === 'budget'} onClick={() => setCurrentTab('budget')} />
+                                <SidebarItem icon={Wallet} label="Despesas Reais" isActive={currentTab === 'actual'} onClick={() => setCurrentTab('actual')} />
+                            </nav>
+                            
+                            <div className="border-t border-zinc-900 flex flex-col justify-end">
+                                {isAdmin && (
+                                    <div className="px-4 py-2 mt-2">
+                                        <SidebarItem icon={Shield} label="Painel Admin" isActive={currentTab === 'admin'} onClick={() => setCurrentTab('admin')} isDanger={true} />
+                                    </div>
+                                )}
+                                <div className="px-4 py-2">
+                                    <SidebarItem icon={Settings} label="Configurações" isActive={currentTab === 'settings'} onClick={() => setCurrentTab('settings')} />
+                                </div>
+                                <div className="p-4 flex items-center justify-between border-t border-zinc-900/50 mt-2">
+                                    <div className="flex items-center space-x-3">
+                                        <div className="w-8 h-8 rounded-full bg-green-900 flex items-center justify-center text-green-400 font-bold border border-green-700 text-xs">
+                                            {(user.displayName || user.email || 'U').charAt(0).toUpperCase()}
+                                        </div>
+                                        <div className="overflow-hidden">
+                                            <p className="text-sm font-medium text-white truncate w-24">{user.displayName || 'Utilizador'}</p>
+                                        </div>
+                                    </div>
+                                    <button onClick={() => signOut(auth)} className="text-zinc-500 hover:text-red-400 p-2"><LogOut size={18} /></button>
+                                </div>
+                            </div>
+                        </aside>
+                    )}
+
+                    <main className="flex-1 overflow-y-auto bg-black text-zinc-100 relative">
+                        {/* MOBILE HEADER COM LOGOUT */}
+                        {isMobile && (
+                            <header className="bg-zinc-950 border-b border-zinc-900 p-4 flex justify-between items-center sticky top-0 z-30 shadow-md">
+                                <h1 className="text-xl font-black text-white tracking-tighter">FIN<span className="text-green-500">HUB</span></h1>
+                                <div className="flex items-center space-x-3">
+                                    <div className="w-7 h-7 rounded-full bg-green-900 flex items-center justify-center text-green-400 font-bold border border-green-700 text-xs">
+                                        {(user.displayName || user.email || 'U').charAt(0).toUpperCase()}
+                                    </div>
+                                    <button onClick={() => signOut(auth)} className="text-zinc-500 hover:text-red-400 bg-zinc-900 p-1.5 rounded-lg border border-zinc-800">
+                                        <LogOut size={16} />
+                                    </button>
+                                </div>
+                            </header>
+                        )}
+
+                        <div className="p-4 md:p-8">
+                            {currentTab === 'dashboard' && (
+                                <ComparisonDashboard plannedTransactions={plannedTransactions} actualTransactions={actualTransactions} expenseCategories={expenseCategories} />
+                            )}
+                            {currentTab === 'budget' && (
+                                <TransactionManager 
+                                    key="budget" user={user} transactions={plannedTransactions} expenseCategories={expenseCategories} 
+                                    collectionName="plannedTransactions" title="Painel de Orçamento" subtitle="Projeção e planeamento financeiro detalhado."
+                                    typeLabel="Previstas" newLabel="Nova Previsão" mobileInputOnly={false}
+                                />
+                            )}
+                            {currentTab === 'actual' && (
+                                <TransactionManager 
+                                    key="actual" user={user} transactions={actualTransactions} expenseCategories={expenseCategories} 
+                                    collectionName="actualTransactions" title="Painel de Despesas Reais" subtitle="Acompanhamento de gastos e receitas efetivamente realizados."
+                                    typeLabel="Reais" newLabel="Novo Lançamento Real" mobileInputOnly={isMobile}
+                                />
+                            )}
+                            {currentTab === 'settings' && (
+                                <SettingsPage user={user} categories={expenseCategories} subscription={subscription} />
+                            )}
+                            {currentTab === 'admin' && isAdmin && (
+                                <AdminDashboard />
+                            )}
+                        </div>
+                        
+                        {/* MOBILE BOTTOM NAV */}
+                        {isMobile && (
+                            <nav className="fixed bottom-0 left-0 right-0 bg-zinc-950 border-t border-zinc-900 flex justify-around p-3 pb-safe z-20 shadow-[0_-4px_15px_rgba(0,0,0,0.5)]">
+                                <button onClick={() => setCurrentTab('dashboard')} className={`flex flex-col items-center p-2 ${currentTab === 'dashboard' ? 'text-green-500' : 'text-zinc-500'}`}><Activity size={20} /><span className="text-[10px] mt-1 font-medium">Dashboard</span></button>
+                                <button onClick={() => setCurrentTab('actual')} className={`flex flex-col items-center p-2 ${currentTab === 'actual' ? 'text-green-500' : 'text-zinc-500'}`}><Plus size={20} /><span className="text-[10px] mt-1 font-medium">Lançar Reais</span></button>
+                            </nav>
+                        )}
+                    </main>
+                </div>
+            );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
